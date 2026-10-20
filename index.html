@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>서울 정비사업 지도</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:none;outline:none}
+.leaflet-tile,.leaflet-marker-icon{user-select:none;-webkit-user-drag:none}
+.leaflet-tile{visibility:hidden}.leaflet-tile-loaded{visibility:inherit}
+.leaflet-zoom-animated{transform-origin:0 0}
+.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
+.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}
+.leaflet-pane>svg path{pointer-events:none}.leaflet-pane>svg path.leaflet-interactive{pointer-events:visiblePainted;pointer-events:auto;cursor:pointer}
+.leaflet-marker-icon.leaflet-interactive{cursor:pointer}
+.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}
+.leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+.leaflet-right .leaflet-control{float:right;margin-right:12px}.leaflet-bottom .leaflet-control{margin-bottom:12px}.leaflet-top .leaflet-control{margin-top:12px}
+.leaflet-bar{border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.leaflet-bar a{display:block;width:34px;height:34px;line-height:34px;text-align:center;background:var(--panel);color:var(--ink);text-decoration:none;font-size:18px;border-bottom:1px solid var(--line)}
+.leaflet-bar a:last-child{border-bottom:0}
+.leaflet-control-attribution{font-size:10px;background:var(--panel);color:var(--sub);padding:0 5px}
+.leaflet-control-attribution a{color:var(--sub)}
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f24; --sub:#5b6470; --line:#e3e6ea; --chip:#eef1f4; --accent:#1f4e8c;
+  --s0:#9aa5b1; --s1:#5aa9e6; --s2:#3c78d8; --s3:#2e9d6a; --s4:#e0a100; --s5:#e46c0a; --s6:#c0392b; --s7:#6d4c41; --s8:#8d8d8d;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111418;--panel:#1a1e24;--ink:#e8eaed;--sub:#9aa3ad;--line:#2b313a;--chip:#232933;--accent:#7fb0ff}}
+:root[data-theme="dark"]{--bg:#111418;--panel:#1a1e24;--ink:#e8eaed;--sub:#9aa3ad;--line:#2b313a;--chip:#232933;--accent:#7fb0ff}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px}
+#map{position:absolute;inset:0}
+#top{position:absolute;left:12px;right:12px;top:12px;z-index:1000;display:flex;gap:8px;align-items:flex-start;pointer-events:none}
+#top>*{pointer-events:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+#searchbox{flex:1;max-width:420px;position:relative}
+#q{width:100%;border:0;background:transparent;padding:11px 14px;font-size:15px;color:var(--ink);outline:none}
+#results{max-height:50vh;overflow:auto;border-top:1px solid var(--line);display:none}
+#results div{padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--line)}
+#results div:hover{background:var(--chip)}
+#results small{color:var(--sub)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
+.btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#filters{position:absolute;left:12px;top:64px;z-index:1000;width:330px;max-height:calc(100% - 140px);overflow:auto;padding:6px 14px 12px;display:none}
+#filters h4{display:flex;align-items:baseline;justify-content:space-between;margin:14px 0 4px;font-size:12.5px;font-weight:600;color:var(--sub);letter-spacing:.02em}
+#filters h4 span{font-weight:400}
+#filters h4 a{font-size:11.5px;margin-left:8px;cursor:pointer;text-decoration:none}
+.sw{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer;user-select:none}
+.sw:last-child{border-bottom:0}
+.sw .lb{flex:1;min-width:0;line-height:1.3}
+.sw .lb small{display:block;font-size:11px;color:var(--sub)}
+.sw .n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+.sw .dot2{width:10px;height:10px;border-radius:3px;flex:none}
+.sw input{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:background .15s}
+.sw input::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.sw input:checked{background:var(--accent)}
+.sw input:checked::after{transform:translateX(16px)}
+.sw input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sw.off .lb{color:var(--sub)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+#fcount{position:sticky;bottom:-12px;background:var(--panel);padding:8px 0 4px;border-top:1px solid var(--line);margin-top:8px;font-size:12.5px;color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12.5px;cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+#legend{position:absolute;left:12px;bottom:12px;z-index:1000;padding:8px 10px;font-size:12px;max-width:calc(100% - 24px)}
+#legend .it{display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0}
+#legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+#status{position:absolute;right:60px;bottom:12px;z-index:1000;padding:6px 10px;font-size:12px;color:var(--sub)}
+#panel{position:absolute;right:12px;top:64px;bottom:12px;width:400px;z-index:1001;overflow:auto;display:none}
+#panel .hd{position:sticky;top:0;background:var(--panel);padding:14px 16px 10px;border-bottom:1px solid var(--line);z-index:2}
+#panel h2{font-size:17px;margin:0 28px 6px 0;line-height:1.35}
+#panel .x{position:absolute;right:10px;top:10px;border:0;background:none;font-size:22px;color:var(--sub);cursor:pointer}
+#panel .bd{padding:6px 16px 20px}
+#panel h3{font-size:13px;color:var(--sub);margin:16px 0 6px;font-weight:600}
+.badge{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;background:var(--chip);margin:2px 4px 2px 0}
+.badge.st{color:#fff}
+table.kv{width:100%;border-collapse:collapse;font-size:13px}
+table.kv td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.kv td:first-child{color:var(--sub);width:38%}
+.steps{display:flex;gap:2px;margin:6px 0 2px}
+.steps span{flex:1;height:7px;border-radius:2px;background:var(--line)}
+.stepl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--sub)}
+.note{font-size:12px;color:var(--sub);line-height:1.5}
+a{color:var(--accent)}
+.bubble{background:var(--panel);color:var(--ink);border:2px solid var(--accent);border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;transform:translate(-50%,-50%)}
+.bubble b{color:var(--accent);font-family:"IBM Plex Mono",monospace}
+table.kv td{font-variant-numeric:tabular-nums}
+.leaflet-container{background:var(--bg);font-family:inherit}
+.gulabel{font-size:11px;color:var(--sub);font-weight:600;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);cursor:pointer;transform:translate(-50%,-50%)}
+.plabel{font-size:11px;font-weight:600;color:#222;background:rgba(255,255,255,.85);padding:1px 5px;border-radius:4px;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none}
+@media (max-width:720px){
+  #top{left:8px;right:8px;top:8px}
+  #filters{left:8px;right:8px;width:auto;top:58px}
+  #panel{left:0;right:0;bottom:0;top:auto;width:auto;max-height:68vh;border-radius:14px 14px 0 0}
+  #legend{display:none}
+  #status{bottom:8px;right:8px}
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="top">
+  <div id="searchbox" class="card"><input id="q" placeholder="사업장명·동 이름 검색 (예: 면목, 압구정, 신림)" autocomplete="off"><div id="results"></div></div>
+  <button class="btn card" id="fbtn">필터</button>
+</div>
+<div id="filters" class="card">
+  <div class="presets" id="fpre"></div>
+  <div id="fgroups"></div>
+  <h4>지도 표시</h4>
+  <label class="sw" id="ffreerow"><span class="lb">기타 정비구역 경계<small>사업장 정보와 연결되지 않은 고시 구역</small></span><input type="checkbox" role="switch" id="ffree"></label>
+  <div id="fcount"></div>
+</div>
+<div id="legend" class="card"></div>
+<div id="status" class="card"></div>
+<div id="panel" class="card"><div class="hd"><button class="x" onclick="closePanel()">×</button><h2 id="ptitle"></h2><div id="pbadges"></div></div><div class="bd" id="pbody"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ===================== 설정 =====================
+ * 카카오 지도 JavaScript 키를 아래에 넣으세요.
+ * (카카오 개발자센터 > 내 애플리케이션 > 앱 키 > JavaScript 키, 플랫폼 > Web 에 배포 주소 등록 필요)
+ * 비워두면 무료 오픈스트리트맵(Leaflet)으로 표시됩니다.
+ */
+const KAKAO_JS_KEY = '';
+/* ================================================ */
+
+const STAGE_COLORS=['--s0','--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let STAGES=[],SITES=[],GEO={},META={},GU=[];let guLayers=[];
+const state={sg:new Set(['done','ing','none']),stages:new Set([0,1,2,3,4,5,6]),mg:new Set(['union','trust','coop','public','etc']),types:new Set(),free:false};
+/* 신통 구분 */
+const SG=[['done','신속통합기획 완료','기획 확정·정비구역 지정'],['ing','신통 기획 중·후보지',''],['none','신통 외 사업장','']];
+const sgOf=s=>s.sintong?(s.sintong.done?'done':'ing'):'none';
+/* 사업 방식 */
+const MG=[['union','조합방식','조합·추진위가 직접 시행'],['trust','신탁방식','신탁사 사업시행자·대행자·지정 신청'],['coop','조합 + 신탁사 협력','조합 시행, 정비몽땅 협력업체에 신탁사 등재'],['public','공공시행','LH·SH 등'],['etc','기타·미확인','토지등소유자 시행, 방식 미기재']];
+function mgOf(s){const m=s.method||'',st=(s.sintong&&s.sintong.trust)||'';
+  if(/신탁/.test(m))return 'trust';
+  if(st&&!/협력업체/.test(st))return 'trust';
+  if(m==='조합')return s.trust?'coop':'union';
+  if(m==='공공')return 'public';
+  return 'etc'}
+const TYPE_GROUP=t=>/도시정비/.test(t)?'재개발(도시정비형)':/주택정비/.test(t)?'재개발(주택정비형)':t;
+const fmt=n=>n==null||n===''?'':Number(n).toLocaleString('ko-KR');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const color=st=>cssv(STAGE_COLORS[st]||'--s0');
+
+function decodeRings(enc){return enc.map(a=>{const out=[];let x=0,y=0;for(let i=0;i<a.length;i+=2){x+=a[i];y+=a[i+1];out.push([x/1e6,y/1e6])}return out})}
+
+/* ---------------- map adapter ---------------- */
+const M={kind:'',map:null,
+  init(cb){
+    const key=new URLSearchParams(location.search).get('kakao')||KAKAO_JS_KEY;
+    if(key){const s=document.createElement('script');s.src='https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&libraries=services&appkey='+encodeURIComponent(key);
+      s.onload=()=>kakao.maps.load(()=>{this.kakaoInit();cb()});s.onerror=()=>{this.leafInit();cb()};document.head.appendChild(s);
+      setTimeout(()=>{if(!this.kind){this.leafInit();cb()}},6000);}
+    else{this.leafInit();cb()}
+  },
+  kakaoInit(){if(this.kind)return;this.kind='kakao';const k=kakao.maps;
+    this.map=new k.Map(document.getElementById('map'),{center:new k.LatLng(37.5565,126.99),level:9});
+    this.map.addControl(new k.MapTypeControl(),k.ControlPosition.TOPRIGHT);this.map.addControl(new k.ZoomControl(),k.ControlPosition.RIGHT);
+    k.event.addListener(this.map,'idle',()=>render());
+    this.geocoder=new k.services.Geocoder();this.places=new k.services.Places();},
+  leafInit(){if(this.kind)return;this.kind='leaflet';
+    this.map=L.map('map',{zoomControl:false}).setView([37.5565,126.99],11);L.control.zoom({position:'bottomright'}).addTo(this.map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(this.map);
+    this.map.on('moveend zoomend',()=>render());},
+  // zoom tier: 0=구, 1=동, 2=상세
+  tier(){if(this.kind==='kakao'){const l=this.map.getLevel();return l>=8?0:l>=6?1:2}const z=this.map.getZoom();return z<=12?0:z<=14?1:2},
+  bounds(){if(this.kind==='kakao'){const b=this.map.getBounds();return[b.getSouthWest().getLng(),b.getSouthWest().getLat(),b.getNorthEast().getLng(),b.getNorthEast().getLat()]}
+    const b=this.map.getBounds();return[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()]},
+  html(lng,lat,el,z){if(this.kind==='kakao'){const o=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,zIndex:z||3,xAnchor:0,yAnchor:0});o.setMap(this.map);return{remove:()=>o.setMap(null)}}
+    const m=L.marker([lat,lng],{icon:L.divIcon({html:el,className:'',iconSize:null}),zIndexOffset:(z||3)*100}).addTo(this.map);return{remove:()=>m.remove()}},
+  poly(rings,col,onclick,width){if(this.kind==='kakao'){const k=kakao.maps;const p=new k.Polygon({path:rings.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:width||2,strokeColor:col,strokeOpacity:.95,fillColor:col,fillOpacity:.22});p.setMap(this.map);if(onclick)k.event.addListener(p,'click',onclick);return{remove:()=>p.setMap(null)}}
+    const p=L.polygon(rings.map(r=>r.map(([x,y])=>[y,x])),{color:col,weight:width||2,fillOpacity:.22}).addTo(this.map);if(onclick)p.on('click',onclick);return{remove:()=>p.remove()}},
+  line(rings,col){if(this.kind==='kakao'){const k=kakao.maps;const p=new k.Polygon({path:rings.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:1.5,strokeColor:col,strokeOpacity:.7,fillOpacity:0});p.setMap(this.map);return{remove:()=>p.setMap(null)}}
+    const p=L.polygon(rings.map(r=>r.map(([x,y])=>[y,x])),{color:col,weight:1.2,opacity:.7,fill:false,interactive:false}).addTo(this.map);return{remove:()=>p.remove()}},
+  go(lng,lat,tier){if(this.kind==='kakao'){const lv=tier===0?9:tier===1?7:4;this.map.setLevel(lv);this.map.setCenter(new kakao.maps.LatLng(lat,lng))}else this.map.setView([lat,lng],tier===0?11:tier===1?13:16)},
+  fit(b){if(this.kind==='kakao'){const k=kakao.maps;const bb=new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2]));this.map.setBounds(bb,40,40,40,40)}else this.map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[40,40],maxZoom:17})}
+};
+
+/* ---------------- data ---------------- */
+async function loadData(){
+  const [a,b,gu]=await Promise.all([fetch('data/sites.json').then(r=>r.json()),fetch('data/geo.json').then(r=>r.json()),fetch('data/gu.json').then(r=>r.json()).catch(()=>[])]);GU=gu;
+  META=a.meta;STAGES=META.stages;SITES=a.sites;
+  for(const [k,v] of Object.entries(b.polys)){GEO[k]={c:v[0],n:v[1],r:decodeRings(v[2])}}
+  GEO._free=b.free;
+  SITES.forEach(s=>{s.tg=TYPE_GROUP(s.type);s.sg=sgOf(s);s.mg=mgOf(s);
+    if(s.poly&&s.poly.length){const bb=[180,90,-180,-90];s.poly.forEach(k=>GEO[k]&&GEO[k].r.forEach(r=>r.forEach(([x,y])=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)})));s.bb=bb}});
+  // 지오코딩 캐시
+  try{const c=JSON.parse(localStorage.getItem('jbmap_geo')||'{}');SITES.forEach(s=>{if(!s.loc&&c[s.id])s.loc=c[s.id]})}catch(e){}
+}
+
+/* ---------------- filters ---------------- */
+const GROUPS=[];
+function buildFilters(){
+  const types=[...new Set(SITES.map(s=>s.tg))].sort((a,b)=>SITES.filter(s=>s.tg===b).length-SITES.filter(s=>s.tg===a).length);
+  types.forEach(t=>{if(!/지역주택|리모델링/.test(t))state.types.add(t)});
+  GROUPS.length=0;
+  GROUPS.push({key:'sg',title:'신속통합기획',get:s=>s.sg,items:SG.map(([v,l,d])=>({v,l,d}))});
+  GROUPS.push({key:'stages',title:'추진 단계',get:s=>s.st,items:STAGES.map((t,i)=>({v:i,l:t,c:color(i)}))});
+  GROUPS.push({key:'mg',title:'사업 방식',get:s=>s.mg,items:MG.map(([v,l,d])=>({v,l,d}))});
+  GROUPS.push({key:'types',title:'사업 유형',get:s=>s.tg,items:types.map(t=>({v:t,l:t}))});
+  const box=document.getElementById('fgroups');box.innerHTML='';
+  GROUPS.forEach(g=>{
+    const h=document.createElement('h4');h.innerHTML='<span style="font-weight:600">'+g.title+'</span><span><a data-a="all">전체</a><a data-a="none">해제</a></span>';
+    h.querySelector('[data-a=all]').onclick=()=>{g.items.forEach(it=>state[g.key].add(it.v));syncUI();render(true)};
+    h.querySelector('[data-a=none]').onclick=()=>{state[g.key].clear();syncUI();render(true)};
+    box.appendChild(h);
+    g.items.forEach(it=>{const r=document.createElement('label');r.className='sw';
+      r.innerHTML=(it.c?'<i class="dot2" style="background:'+it.c+'"></i>':'')+'<span class="lb">'+esc(it.l)+(it.d?'<small>'+esc(it.d)+'</small>':'')+'</span><span class="n"></span><input type="checkbox" role="switch">';
+      const inp=r.querySelector('input');inp.onchange=()=>{inp.checked?state[g.key].add(it.v):state[g.key].delete(it.v);syncUI();render(true)};
+      it.row=r;it.inp=inp;it.cnt=r.querySelector('.n');box.appendChild(r)})});
+  document.getElementById('ffree').onchange=e=>{state.free=e.target.checked;render(true)};
+  const P=[['전체 보기',()=>{GROUPS.forEach(g=>g.items.forEach(it=>state[g.key].add(it.v)))}],
+    ['기본값',()=>{state.sg=new Set(['done','ing','none']);state.stages=new Set([0,1,2,3,4,5,6]);state.mg=new Set(MG.map(x=>x[0]));state.types=new Set(types.filter(t=>!/지역주택|리모델링/.test(t)))}],
+    ['신통기획 완료만',()=>{state.sg=new Set(['done'])}],
+    ['신탁방식만',()=>{state.mg=new Set(['trust'])}],
+    ['관리처분 이후',()=>{state.stages=new Set([5,6,7])}]];
+  const pre=document.getElementById('fpre');P.forEach(([l,f])=>{const c=document.createElement('span');c.className='chip';c.textContent=l;c.onclick=()=>{f();syncUI();render(true)};pre.appendChild(c)});
+  document.getElementById('fbtn').onclick=()=>{const f=document.getElementById('filters');const on=f.style.display!=='block';f.style.display=on?'block':'none';document.getElementById('fbtn').classList.toggle('on',on)};
+  syncUI();
+  document.getElementById('legend').innerHTML=STAGES.map((t,i)=>'<span class="it"><i style="background:'+color(i)+'"></i>'+t+'</span>').join('');
+}
+function visible(s,skip){
+  for(const g of GROUPS){if(g.key===skip)continue;if(!state[g.key].has(g.get(s)))return false}
+  return true;
+}
+/* 스위치 상태·개수 갱신 (개수 = 다른 조건을 적용했을 때 해당 항목 사업장 수) */
+function syncUI(){
+  GROUPS.forEach(g=>{const cnt={};SITES.forEach(s=>{if(visible(s,g.key)){const v=g.get(s);cnt[v]=(cnt[v]||0)+1}});
+    g.items.forEach(it=>{const on=state[g.key].has(it.v);it.inp.checked=on;it.row.classList.toggle('off',!on);it.cnt.textContent=(cnt[it.v]||0).toLocaleString()})});
+  document.getElementById('ffree').checked=state.free;
+  const n=GROUPS.reduce((a,g)=>a+g.items.filter(it=>!state[g.key].has(it.v)).length,0);
+  document.getElementById('fbtn').textContent=n?'필터 · '+n+'개 꺼짐':'필터';
+}
+
+/* ---------------- render ---------------- */
+let layers=[];let lastKey='';
+function clear(){layers.forEach(l=>l.remove());layers=[]}
+function render(force){
+  if(!M.kind||!SITES.length)return;
+  const tier=M.tier();const b=M.bounds();const key=tier+'|'+(tier===2?b.map(x=>x.toFixed(3)).join(','):'')+'|'+JSON.stringify([[...state.sg],[...state.stages],[...state.mg],[...state.types],state.free]);
+  if(!force&&key===lastKey)return;lastKey=key;clear();
+  const vis=SITES.filter(visible);
+  document.getElementById('fcount').textContent='표시 대상 '+vis.length.toLocaleString()+'곳 / 전체 '+SITES.length.toLocaleString()+'곳';
+  const inb=(x,y,p)=>x>=b[0]-p&&x<=b[2]+p&&y>=b[1]-p&&y<=b[3]+p;
+  if(tier<2){
+    const keyf=tier===0?s=>s.gu:s=>s.gu+' '+s.dong;const groups={};
+    vis.forEach(s=>{if(!s.loc)return;const k=keyf(s);(groups[k]=groups[k]||[]).push(s)});
+    Object.entries(groups).forEach(([k,arr])=>{const x=arr.reduce((a,s)=>a+s.loc[0],0)/arr.length,y=arr.reduce((a,s)=>a+s.loc[1],0)/arr.length;if(tier===1&&!inb(x,y,.01))return;
+      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(tier===0?k:k.split(' ')[1])+' <b>'+arr.length+'</b>';el.onclick=()=>M.go(x,y,tier+1);layers.push(M.html(x,y,el,5))});
+    status('구·동을 누르면 확대됩니다 · 데이터 기준 '+META.built);
+  }else{
+    let n=0;
+    if(state.free){(GEO._free||[]).forEach(k=>{const g=GEO[k];if(!g)return;const p=g.r[0][0];if(!inb(p[0],p[1],.02))return;layers.push(M.poly(g.r,'#7f8c8d',()=>showFree(g),1))})}
+    vis.forEach(s=>{
+      if(s.bb&&s.bb[2]>=b[0]-.01&&s.bb[0]<=b[2]+.01&&s.bb[3]>=b[1]-.01&&s.bb[1]<=b[3]+.01){
+        s.poly.forEach(k=>GEO[k]&&layers.push(M.poly(GEO[k].r,color(s.st),()=>openPanel(s))));n++;
+        if(s.loc){const el=document.createElement('div');el.className='plabel';el.textContent=short(s);layers.push(M.html(s.loc[0],s.loc[1],el,2))}
+      }else if(!s.bb&&s.loc&&inb(s.loc[0],s.loc[1],.005)){
+        const el=document.createElement('div');el.className='dot';el.style.background=color(s.st);el.title=s.name;el.onclick=()=>openPanel(s);layers.push(M.html(s.loc[0],s.loc[1],el,4));n++;
+      }
+    });
+    status('화면 내 '+n+'곳 · 경계 또는 점을 누르면 상세정보 · 기준 '+META.built);
+  }
+}
+function short(s){const n=(s.sintong&&s.sintong.label)||s.name;return n.replace(/\s*(주택정비형|도시정비형)?\s*(재개발|재건축)?\s*(정비)?사업\s*(조합)?.*$/,'').replace(/(아파트|주택)?(재건축|재개발).*$/,'').slice(0,18)||n.slice(0,18)}
+function status(t){document.getElementById('status').textContent=t}
+
+function drawGu(){const c=cssv('--sub')||'#888';GU.forEach(([n,rings])=>{guLayers.push(M.line(rings,c));})}
+/* ---------------- panel ---------------- */
+function kv(rows){const r=rows.filter(x=>x[1]!==''&&x[1]!=null&&x[1]!==undefined);return r.length?'<table class="kv">'+r.map(([k,v])=>'<tr><td>'+k+'</td><td>'+v+'</td></tr>').join('')+'</table>':'<div class="note">공개 정보 없음</div>'}
+function d8(s){return s?s.replace(/-/g,'.'):''}
+function openPanel(s){
+  const p=document.getElementById('panel');p.style.display='block';
+  const title=(s.sintong&&s.sintong.label&&s.sintong.label!==s.name)?esc(s.name)+'<div class="note">신통 표기: '+esc(s.sintong.label)+'</div>':esc(s.name);
+  document.getElementById('ptitle').innerHTML=title;
+  document.getElementById('pbadges').innerHTML='<span class="badge st" style="background:'+color(s.st)+'">'+STAGES[s.st]+'</span><span class="badge">'+esc(s.type)+'</span>'+(s.method?'<span class="badge">'+esc(s.method)+'</span>':'')+(s.sintong?'<span class="badge">신속통합기획</span>':'');
+  const pl=s.plan||{},dt=s.dates||{},si=s.sintong;
+  const steps='<div class="steps">'+STAGES.slice(0,8).map((t,i)=>'<span style="background:'+(i<=s.st?color(Math.min(s.st,8)):'')+'"></span>').join('')+'</div><div class="stepl"><span>계획</span><span>구역지정</span><span>추진위</span><span>조합</span><span>사시</span><span>관처</span><span>착공</span><span>준공</span></div>';
+  let h='';
+  h+='<h3>추진 단계</h3>'+steps+kv([['정비구역 지정',d8(dt.zone)],['추진위원회 승인',d8(dt.cmte)],['조합설립인가',d8(dt.assoc)],['사업시행자 지정',d8(dt.trustee)],['사업시행인가',d8(dt.impl)||(si&&si.impl)||''],['관리처분인가',d8(dt.mgmt)||(si&&si.mgmt)||''],['이주',d8(dt.move)],['착공신고',d8(dt.start)],['일반분양승인',d8(dt.sale)],['준공인가',d8(dt.done)],['정비몽땅 표기 단계',esc(s.stage_raw)]]);
+  h+='<h3>사업 주체</h3>'+kv([['시행 방식',esc(s.method)],['신탁사',s.trust?esc(s.trust)+(/^조합$/.test(s.method)?' <span class="note">(정비몽땅 협력업체 등재)</span>':''):''],['시공사',esc(s.builder)]]);
+  h+='<h3>건축 계획</h3>'+kv([['주용도',esc(pl.use)],['대지면적',pl.site?fmt(pl.site)+'㎡':''],['연면적',pl.gfa?fmt(pl.gfa)+'㎡':''],['건폐율',pl.bcr?pl.bcr+'%':''],['용적률',pl.far?pl.far+'%':''],['최고높이',pl.h?pl.h+'m':''],['층수',esc(pl.fl)],['세대수',pl.hh?fmt(pl.hh)+'세대'+(pl.rent?' (분양 '+fmt(pl.sale||0)+' / 임대 '+fmt(pl.rent)+')':''):(si&&si.hh?fmt(si.hh)+'세대(신통 계획)':'')],['동수',pl.dong_n?pl.dong_n+'개동':'']]);
+  h+='<h3>구역 개요</h3>'+kv([['자치구·동',esc(s.gu+' '+(s.dong||''))],['대표지번',esc(s.jibun)],['정비구역 위치',esc(s.loctxt)],['정비구역 면적',s.area?fmt(s.area)+'㎡':(si&&si.area?fmt(si.area)+'㎡':'')],['조합원 수',esc(s.mem)],['용도지역',esc(s.zoneuse)]]);
+  if(si){h+='<h3>신속통합기획</h3>'+kv([['구분',esc(si.grp)],['기획완료일',d8(si.plan_date)||(si.done?'':'기획 중·후보지')],['통합심의',esc(si.review)],['최근 동향',esc(si.note)]]);
+    const links=(si.src||'').split(' ; ').filter(Boolean).map((u,i)=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">언론'+(i+1)+'</a>');if(si.archive)links.push('<a href="'+esc(si.archive)+'" target="_blank" rel="noopener">신통 아카이브</a>');if(links.length)h+='<div class="note">출처: '+links.join(' · ')+'</div>'}
+  const L=[];if(s.cafe)L.push('<a target="_blank" rel="noopener" href="https://cleanup.seoul.go.kr/cafe/mainIndx.do?cafeUrl='+encodeURIComponent(s.cafe)+'">정비몽땅 사업장 페이지</a>');if(s.map)L.push('<a target="_blank" rel="noopener" href="https://urban.seoul.go.kr/view/map/mapPopup.html?recordCode='+encodeURIComponent(s.map)+'">도시공간포털 지도</a>');
+  h+='<h3>바로가기</h3><div class="note">'+(L.join(' · ')||'—')+'</div><p class="note">정비몽땅 공개자료는 각 조합·추진위·신탁사가 입력한 내용으로 누락·지연이 있을 수 있습니다. 데이터 기준일 '+META.built+'.</p>';
+  document.getElementById('pbody').innerHTML=h;document.getElementById('pbody').scrollTop=0;
+}
+function showFree(g){const p=document.getElementById('panel');p.style.display='block';document.getElementById('ptitle').textContent=g.n;document.getElementById('pbadges').innerHTML='<span class="badge">정비구역 경계(사업장 정보 미연계)</span>';document.getElementById('pbody').innerHTML='<p class="note">서울도시공간포털 정비구역 도면 레이어(코드 '+esc(g.c)+'). 정비몽땅에 등록된 사업장 정보와 연결되지 않은 구역입니다. 이미 완료된 사업이거나 미등록 사업장일 수 있습니다.</p>'}
+function closePanel(){document.getElementById('panel').style.display='none'}
+
+/* ---------------- search ---------------- */
+function setupSearch(){
+  const q=document.getElementById('q'),res=document.getElementById('results');
+  q.oninput=()=>{const v=q.value.trim().replace(/\s+/g,'');if(v.length<1){res.style.display='none';return}
+    const hits=SITES.filter(s=>(s.name+(s.nm2||'')+(s.sintong?s.sintong.label:'')+s.gu+s.dong+s.jibun).replace(/\s+/g,'').includes(v)).slice(0,40);
+    res.innerHTML=hits.map((s,i)=>'<div data-i="'+SITES.indexOf(s)+'">'+esc((s.sintong&&s.sintong.label)||s.name)+'<br><small>'+esc(s.gu+' '+s.jibun)+' · '+STAGES[s.st]+(s.loc?'':' · 위치 미확인')+'</small></div>').join('')||'<div><small>결과 없음</small></div>';res.style.display='block';
+    res.querySelectorAll('div[data-i]').forEach(d=>d.onclick=()=>{const s=SITES[+d.dataset.i];res.style.display='none';q.blur();
+      if(!visible(s)){GROUPS.forEach(g=>state[g.key].add(g.get(s)));syncUI()}
+      if(s.bb)M.fit(s.bb);else if(s.loc)M.go(s.loc[0],s.loc[1],2);setTimeout(()=>{render(true);openPanel(s)},350)})};
+  q.onfocus=()=>{if(q.value)q.oninput()};
+  document.addEventListener('click',e=>{if(!document.getElementById('searchbox').contains(e.target))res.style.display='none'});
+}
+
+/* ---------------- runtime geocode (카카오) ---------------- */
+async function geocodeMissing(){
+  if(M.kind!=='kakao')return;const miss=SITES.filter(s=>!s.loc&&s.geocode);if(!miss.length)return;
+  let cache={};try{cache=JSON.parse(localStorage.getItem('jbmap_geo')||'{}')}catch(e){}
+  for(const s of miss){
+    const r=await new Promise(res=>M.geocoder.addressSearch('서울 '+s.geocode,(d,st)=>{if(st===kakao.maps.services.Status.OK&&d[0])res([+d[0].x,+d[0].y]);else M.places.keywordSearch('서울 '+s.geocode,(d2,st2)=>res(st2===kakao.maps.services.Status.OK&&d2[0]?[+d2[0].x,+d2[0].y]:null))}));
+    if(r){s.loc=r;s.approx=true;cache[s.id]=r}
+    await new Promise(r=>setTimeout(r,60));
+  }
+  try{localStorage.setItem('jbmap_geo',JSON.stringify(cache))}catch(e){}
+  render(true);
+}
+
+loadData().then(()=>{buildFilters();setupSearch();M.init(()=>{drawGu();render(true);geocodeMissing()})}).catch(e=>{status('데이터를 불러오지 못했습니다: '+e)});
+</script>
+</body>
+</html>
