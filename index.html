@@ -65,7 +65,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12.5px;cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
-#legend{position:absolute;left:12px;bottom:12px;z-index:1000;padding:8px 10px;font-size:12px;max-width:calc(100% - 24px)}
+#legend{position:absolute;left:12px;bottom:12px;z-index:1000;padding:8px 10px;font-size:12px;max-width:calc(100% - 500px)}
 #legend .it{display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0}
 #legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
 #status{position:absolute;right:60px;bottom:12px;z-index:1000;padding:6px 10px;font-size:12px;color:var(--sub)}
@@ -90,14 +90,21 @@ a{color:var(--accent)}
 table.kv td{font-variant-numeric:tabular-nums}
 .leaflet-container{background:var(--bg);font-family:inherit}
 .gulabel{font-size:11px;color:var(--sub);font-weight:600;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap}
-.dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);cursor:pointer;transform:translate(-50%,-50%)}
+.pin{position:relative;width:44px;height:50px;transform:translate(-50%,-100%);cursor:pointer;display:flex;justify-content:center;align-items:flex-end;-webkit-tap-highlight-color:transparent}
+.pin svg{width:26px;height:36px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));transition:transform .12s;transform-origin:50% 100%}
+.pin:hover svg,.pin:active svg{transform:scale(1.18)}
+.pin .pl{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:2px;font-size:10.5px;font-weight:600;color:#222;background:rgba(255,255,255,.88);padding:0 4px;border-radius:3px;white-space:nowrap;pointer-events:none}
+#fhead{position:sticky;top:-6px;z-index:2;display:flex;align-items:center;justify-content:space-between;background:var(--panel);margin:0 -14px;padding:10px 14px 8px;border-bottom:1px solid var(--line)}
+#fhead b{font-size:14px}
+#fclose{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+#status button{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:999px;padding:2px 9px;font-size:12px;margin-left:6px;cursor:pointer;font-family:inherit}
 .plabel{font-size:11px;font-weight:600;color:#222;background:rgba(255,255,255,.85);padding:1px 5px;border-radius:4px;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none}
 @media (max-width:720px){
   #top{left:8px;right:8px;top:8px}
   #filters{left:8px;right:8px;width:auto;top:58px}
   #panel{left:0;right:0;bottom:0;top:auto;width:auto;max-height:68vh;border-radius:14px 14px 0 0}
   #legend{display:none}
-  #status{bottom:8px;right:8px}
+  #status{bottom:8px;right:56px;left:8px;text-align:right}
 }
 </style>
 </head>
@@ -108,6 +115,7 @@ table.kv td{font-variant-numeric:tabular-nums}
   <button class="btn card" id="fbtn">필터</button>
 </div>
 <div id="filters" class="card">
+  <div id="fhead"><b>필터</b><button id="fclose" type="button">접기 ▲</button></div>
   <div class="presets" id="fpre"></div>
   <div id="fgroups"></div>
   <h4>지도 표시</h4>
@@ -125,12 +133,13 @@ table.kv td{font-variant-numeric:tabular-nums}
  * (카카오 개발자센터 > 내 애플리케이션 > 앱 키 > JavaScript 키, 플랫폼 > Web 에 배포 주소 등록 필요)
  * 비워두면 무료 오픈스트리트맵(Leaflet)으로 표시됩니다.
  */
-const KAKAO_JS_KEY = '368b3da5034cf7392bf2390b9f8d1ebe';
+const KAKAO_JS_KEY = '';
 /* ================================================ */
 
 const STAGE_COLORS=['--s0','--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
 const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 let STAGES=[],SITES=[],GEO={},META={},GU=[];let guLayers=[];
+let FOCUS=null,FOCUSLOCK=false;
 const state={sg:new Set(['done','ing','none']),stages:new Set([0,1,2,3,4,5,6]),mg:new Set(['union','trust','coop','public','etc']),types:new Set(),free:false};
 /* 신통 구분 */
 const SG=[['done','신속통합기획 완료','기획 확정·정비구역 지정'],['ing','신통 기획 중·후보지',''],['none','신통 외 사업장','']];
@@ -148,6 +157,11 @@ const fmt=n=>n==null||n===''?'':Number(n).toLocaleString('ko-KR');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const color=st=>cssv(STAGE_COLORS[st]||'--s0');
 
+/* 고리 묶기: 바깥 고리(시계방향)마다 그 안의 구멍(반시계)을 붙여 여러 개의 다각형으로 */
+function ringArea(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];return a/2}
+function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const[xi,yi]=r[i],[xj,yj]=r[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c}return c}
+function groupRings(rings){if(rings.length<2)return[rings];const outs=rings.filter(r=>ringArea(r)<0),holes=rings.filter(r=>ringArea(r)>=0);if(!outs.length||!holes.length)return rings.map(r=>[r]);
+  const G=outs.map(o=>[o]);holes.forEach(h=>{const g=G.find(g=>inRing(h[0][0],h[0][1],g[0]));if(g)g.push(h)});return G}
 function decodeRings(enc){return enc.map(a=>{const out=[];let x=0,y=0;for(let i=0;i<a.length;i+=2){x+=a[i];y+=a[i+1];out.push([x/1e6,y/1e6])}return out})}
 
 /* ---------------- map adapter ---------------- */
@@ -162,23 +176,28 @@ const M={kind:'',map:null,
   kakaoInit(){if(this.kind)return;this.kind='kakao';const k=kakao.maps;
     this.map=new k.Map(document.getElementById('map'),{center:new k.LatLng(37.5565,126.99),level:9});
     this.map.addControl(new k.MapTypeControl(),k.ControlPosition.TOPRIGHT);this.map.addControl(new k.ZoomControl(),k.ControlPosition.RIGHT);
-    k.event.addListener(this.map,'idle',()=>render());
+    k.event.addListener(this.map,'idle',()=>render());k.event.addListener(this.map,'dragstart',()=>{FOCUSLOCK=false});
     this.geocoder=new k.services.Geocoder();this.places=new k.services.Places();},
   leafInit(){if(this.kind)return;this.kind='leaflet';
     this.map=L.map('map',{zoomControl:false}).setView([37.5565,126.99],11);L.control.zoom({position:'bottomright'}).addTo(this.map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(this.map);
-    this.map.on('moveend zoomend',()=>render());},
+    this.map.on('moveend zoomend',()=>render());this.map.on('dragstart',()=>{FOCUSLOCK=false});},
   // zoom tier: 0=구, 1=동, 2=상세
   tier(){if(this.kind==='kakao'){const l=this.map.getLevel();return l>=8?0:l>=6?1:2}const z=this.map.getZoom();return z<=12?0:z<=14?1:2},
   bounds(){if(this.kind==='kakao'){const b=this.map.getBounds();return[b.getSouthWest().getLng(),b.getSouthWest().getLat(),b.getNorthEast().getLng(),b.getNorthEast().getLat()]}
     const b=this.map.getBounds();return[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()]},
   html(lng,lat,el,z){if(this.kind==='kakao'){const o=new kakao.maps.CustomOverlay({position:new kakao.maps.LatLng(lat,lng),content:el,zIndex:z||3,xAnchor:0,yAnchor:0});o.setMap(this.map);return{remove:()=>o.setMap(null)}}
     const m=L.marker([lat,lng],{icon:L.divIcon({html:el,className:'',iconSize:null}),zIndexOffset:(z||3)*100}).addTo(this.map);return{remove:()=>m.remove()}},
-  poly(rings,col,onclick,width){if(this.kind==='kakao'){const k=kakao.maps;const p=new k.Polygon({path:rings.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:width||2,strokeColor:col,strokeOpacity:.95,fillColor:col,fillOpacity:.22});p.setMap(this.map);if(onclick)k.event.addListener(p,'click',onclick);return{remove:()=>p.setMap(null)}}
-    const p=L.polygon(rings.map(r=>r.map(([x,y])=>[y,x])),{color:col,weight:width||2,fillOpacity:.22}).addTo(this.map);if(onclick)p.on('click',onclick);return{remove:()=>p.remove()}},
-  line(rings,col){if(this.kind==='kakao'){const k=kakao.maps;const p=new k.Polygon({path:rings.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:1.5,strokeColor:col,strokeOpacity:.7,fillOpacity:0});p.setMap(this.map);return{remove:()=>p.setMap(null)}}
-    const p=L.polygon(rings.map(r=>r.map(([x,y])=>[y,x])),{color:col,weight:1.2,opacity:.7,fill:false,interactive:false}).addTo(this.map);return{remove:()=>p.remove()}},
+  poly(rings,col,onclick,width,dash){const G=groupRings(rings);if(this.kind==='kakao'){const k=kakao.maps;const ps=G.map(g=>{const p=new k.Polygon({path:g.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:width||2,strokeColor:col,strokeOpacity:.95,strokeStyle:dash?'shortdash':'solid',fillColor:col,fillOpacity:dash?.12:.22});p.setMap(this.map);if(onclick)k.event.addListener(p,'click',onclick);return p});return{remove:()=>ps.forEach(p=>p.setMap(null))}}
+    const p=L.polygon(G.map(g=>g.map(r=>r.map(([x,y])=>[y,x]))),{color:col,weight:width||2,fillOpacity:dash?.12:.22,dashArray:dash?'6 5':null}).addTo(this.map);if(onclick)p.on('click',onclick);return{remove:()=>p.remove()}},
+  line(rings,col,w){if(this.kind==='kakao'){const k=kakao.maps;const p=new k.Polygon({path:rings.map(r=>r.map(([x,y])=>new k.LatLng(y,x))),strokeWeight:w||1.5,strokeColor:col,strokeOpacity:w?.95:.7,fillOpacity:0});p.setMap(this.map);return{remove:()=>p.setMap(null)}}
+    const p=L.polygon(rings.map(r=>r.map(([x,y])=>[y,x])),{color:col,weight:w||1.2,opacity:w?.95:.7,fill:false,interactive:false}).addTo(this.map);return{remove:()=>p.remove()}},
   go(lng,lat,tier){if(this.kind==='kakao'){const lv=tier===0?9:tier===1?7:4;this.map.setLevel(lv);this.map.setCenter(new kakao.maps.LatLng(lat,lng))}else this.map.setView([lat,lng],tier===0?11:tier===1?13:16)},
+  center(){if(this.kind==='kakao'){const c=this.map.getCenter();return[c.getLng(),c.getLat()]}const c=this.map.getCenter();return[c.lng,c.lat]},
+  fitGu(b){const cx=(b[0]+b[2])/2,cy=(b[1]+b[3])/2;if(this.kind==='kakao'){const k=kakao.maps;this.map.setBounds(new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2])),20,20,20,20);if(this.map.getLevel()>7)this.map.setLevel(7);if(this.map.getLevel()<6)this.map.setLevel(6);this.map.setCenter(new k.LatLng(cy,cx))}
+    else{const z=Math.min(14,Math.max(13,this.map.getBoundsZoom([[b[1],b[0]],[b[3],b[2]]])));this.map.setView([cy,cx],z)}},
+  fitDetail(b){if(this.kind==='kakao'){const k=kakao.maps;this.map.setBounds(new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2])),50,30,60,30);if(this.map.getLevel()>5)this.map.setLevel(5)}
+    else{const z=Math.min(17,Math.max(15,this.map.getBoundsZoom([[b[1],b[0]],[b[3],b[2]]],false,L.point(60,100))));this.map.setView([(b[1]+b[3])/2,(b[0]+b[2])/2],z)}},
   fit(b){if(this.kind==='kakao'){const k=kakao.maps;const bb=new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2]));this.map.setBounds(bb,40,40,40,40)}else this.map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[40,40],maxZoom:17})}
 };
 
@@ -187,9 +206,10 @@ async function loadData(){
   const [a,b,gu]=await Promise.all([fetch('data/sites.json').then(r=>r.json()),fetch('data/geo.json').then(r=>r.json()),fetch('data/gu.json').then(r=>r.json()).catch(()=>[])]);GU=gu;
   META=a.meta;STAGES=META.stages;SITES=a.sites;
   for(const [k,v] of Object.entries(b.polys)){GEO[k]={c:v[0],n:v[1],r:decodeRings(v[2])}}
-  GEO._free=b.free;
-  SITES.forEach(s=>{s.tg=TYPE_GROUP(s.type);s.sg=sgOf(s);s.mg=mgOf(s);
-    if(s.poly&&s.poly.length){const bb=[180,90,-180,-90];s.poly.forEach(k=>GEO[k]&&GEO[k].r.forEach(r=>r.forEach(([x,y])=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)})));s.bb=bb}});
+  GEO._free=b.free;const LOTS=b.lots||{};
+  SITES.forEach(s=>{s.tg=TYPE_GROUP(s.type);if(LOTS[s.id])s.lotR=decodeRings(LOTS[s.id]);s.sg=sgOf(s);s.mg=mgOf(s);
+    const RS=s.poly&&s.poly.length?s.poly.map(k=>GEO[k]?GEO[k].r:[]).flat():(s.lotR||null);
+    if(RS){const bb=[180,90,-180,-90];[RS].forEach(rr=>rr&&rr.forEach(r=>r.forEach(([x,y])=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)})));s.bb=bb}});
   // 지오코딩 캐시
   try{const c=JSON.parse(localStorage.getItem('jbmap_geo')||'{}');SITES.forEach(s=>{if(!s.loc&&c[s.id])s.loc=c[s.id]})}catch(e){}
 }
@@ -221,7 +241,9 @@ function buildFilters(){
     ['신탁방식만',()=>{state.mg=new Set(['trust'])}],
     ['관리처분 이후',()=>{state.stages=new Set([5,6,7])}]];
   const pre=document.getElementById('fpre');P.forEach(([l,f])=>{const c=document.createElement('span');c.className='chip';c.textContent=l;c.onclick=()=>{f();syncUI();render(true)};pre.appendChild(c)});
-  document.getElementById('fbtn').onclick=()=>{const f=document.getElementById('filters');const on=f.style.display!=='block';f.style.display=on?'block':'none';document.getElementById('fbtn').classList.toggle('on',on)};
+  const fshow=on=>{document.getElementById('filters').style.display=on?'block':'none';document.getElementById('fbtn').classList.toggle('on',on)};
+  document.getElementById('fbtn').onclick=()=>fshow(document.getElementById('filters').style.display!=='block');
+  document.getElementById('fclose').onclick=()=>fshow(false);
   syncUI();
   document.getElementById('legend').innerHTML=STAGES.map((t,i)=>'<span class="it"><i style="background:'+color(i)+'"></i>'+t+'</span>').join('');
 }
@@ -241,35 +263,58 @@ function syncUI(){
 /* ---------------- render ---------------- */
 let layers=[];let lastKey='';
 function clear(){layers.forEach(l=>l.remove());layers=[]}
+function pip(x,y,rings){let c=false;rings.forEach(r=>{for(let i=0,j=r.length-1;i<r.length;j=i++){const[xi,yi]=r[i],[xj,yj]=r[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c}});return c}
+function guAt(x,y){const g=GU.find(([n,r])=>pip(x,y,r));return g?g[0]:null}
+function guBB(name){const g=GU.find(x=>x[0]===name);if(!g)return null;const bb=[180,90,-180,-90];g[1].forEach(r=>r.forEach(([x,y])=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)}));return bb}
+function goSeoul(){FOCUS=null;FOCUSLOCK=false;M.go(126.99,37.5565,0)}
+function pinEl(s,label){const el=document.createElement('div');el.className='pin';el.title=s.name;
+  el.innerHTML='<svg viewBox="0 0 26 36" aria-hidden="true"><path d="M13 35C13 35 25 21.5 25 12.5A12 12 0 0 0 1 12.5C1 21.5 13 35 13 35Z" fill="'+color(s.st)+'" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="4.5" fill="#fff"/></svg>'+(label?'<span class="pl">'+esc(label)+'</span>':'');
+  el.onclick=e=>{e.stopPropagation();openPanel(s)};return el}
 function render(force){
   if(!M.kind||!SITES.length)return;
-  const tier=M.tier();const b=M.bounds();const key=tier+'|'+(tier===2?b.map(x=>x.toFixed(3)).join(','):'')+'|'+JSON.stringify([[...state.sg],[...state.stages],[...state.mg],[...state.types],state.free]);
+  const tier=M.tier();const b=M.bounds();
+  if(tier===0){FOCUS=null;FOCUSLOCK=false}
+  else if(tier===1&&!FOCUSLOCK){const c=M.center();FOCUS=guAt(c[0],c[1])||FOCUS}
+  const key=tier+'|'+(tier>=1?b.map(x=>x.toFixed(3)).join(','):'')+'|'+FOCUS+'|'+JSON.stringify([[...state.sg],[...state.stages],[...state.mg],[...state.types],state.free]);
   if(!force&&key===lastKey)return;lastKey=key;clear();
   const vis=SITES.filter(visible);
   document.getElementById('fcount').textContent='표시 대상 '+vis.length.toLocaleString()+'곳 / 전체 '+SITES.length.toLocaleString()+'곳';
   const inb=(x,y,p)=>x>=b[0]-p&&x<=b[2]+p&&y>=b[1]-p&&y<=b[3]+p;
-  if(tier<2){
-    const keyf=tier===0?s=>s.gu:s=>s.gu+' '+s.dong;const groups={};
-    vis.forEach(s=>{if(!s.loc)return;const k=keyf(s);(groups[k]=groups[k]||[]).push(s)});
-    Object.entries(groups).forEach(([k,arr])=>{const x=arr.reduce((a,s)=>a+s.loc[0],0)/arr.length,y=arr.reduce((a,s)=>a+s.loc[1],0)/arr.length;if(tier===1&&!inb(x,y,.01))return;
-      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(tier===0?k:k.split(' ')[1])+' <b>'+arr.length+'</b>';el.onclick=()=>M.go(x,y,tier+1);layers.push(M.html(x,y,el,5))});
-    status('구·동을 누르면 확대됩니다 · 데이터 기준 '+META.built);
+  if(tier===0){
+    const groups={};
+    vis.forEach(s=>{if(!s.loc)return;(groups[s.gu]=groups[s.gu]||[]).push(s)});
+    Object.entries(groups).forEach(([k,arr])=>{const x=arr.reduce((a,s)=>a+s.loc[0],0)/arr.length,y=arr.reduce((a,s)=>a+s.loc[1],0)/arr.length;
+      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(k)+' <b>'+arr.length+'</b>';
+      el.onclick=e=>{e.stopPropagation();FOCUS=k;FOCUSLOCK=true;const bb=guBB(k);if(bb)M.fitGu(bb);else M.go(x,y,1);setTimeout(()=>render(true),400)};layers.push(M.html(x,y,el,5))});
+    status('자치구를 누르면 동별 사업장 수가 보입니다 · 기준 '+META.built);
+  }else if(tier===1){
+    const groups={};
+    vis.forEach(s=>{if(!s.loc||(FOCUS&&s.gu!==FOCUS))return;const k=s.dong||'(동 미상)';(groups[k]=groups[k]||[]).push(s)});
+    const g=GU.find(x=>x[0]===FOCUS);if(g)layers.push(M.line(g[1],cssv('--accent'),3.5));
+    Object.entries(groups).forEach(([k,arr])=>{const x=arr.reduce((a,s)=>a+s.loc[0],0)/arr.length,y=arr.reduce((a,s)=>a+s.loc[1],0)/arr.length;
+      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(k)+' <b>'+arr.length+'</b>';el.onclick=e=>{e.stopPropagation();FOCUSLOCK=true;const bb=[180,90,-180,-90];arr.forEach(s=>{const q=s.bb||[s.loc[0],s.loc[1],s.loc[0],s.loc[1]];bb[0]=Math.min(bb[0],q[0]);bb[1]=Math.min(bb[1],q[1]);bb[2]=Math.max(bb[2],q[2]);bb[3]=Math.max(bb[3],q[3])});M.fitDetail(bb)};layers.push(M.html(x,y,el,5))});
+    const tot=Object.values(groups).reduce((a,v)=>a+v.length,0);
+    status((FOCUS?FOCUS+' '+tot+'곳 · 동을 누르면 확대':'동을 누르면 확대'),true);
   }else{
     let n=0;
     if(state.free){(GEO._free||[]).forEach(k=>{const g=GEO[k];if(!g)return;const p=g.r[0][0];if(!inb(p[0],p[1],.02))return;layers.push(M.poly(g.r,'#7f8c8d',()=>showFree(g),1))})}
     vis.forEach(s=>{
-      if(s.bb&&s.bb[2]>=b[0]-.01&&s.bb[0]<=b[2]+.01&&s.bb[3]>=b[1]-.01&&s.bb[1]<=b[3]+.01){
+      const inView=s.bb&&s.bb[2]>=b[0]-.01&&s.bb[0]<=b[2]+.01&&s.bb[3]>=b[1]-.01&&s.bb[1]<=b[3]+.01;
+      if(inView&&s.poly.length){
         s.poly.forEach(k=>GEO[k]&&layers.push(M.poly(GEO[k].r,color(s.st),()=>openPanel(s))));n++;
         if(s.loc){const el=document.createElement('div');el.className='plabel';el.textContent=short(s);layers.push(M.html(s.loc[0],s.loc[1],el,2))}
+      }else if(inView&&s.lotR){
+        layers.push(M.poly(s.lotR,color(s.st),()=>openPanel(s),2,true));n++;
+        if(s.loc)layers.push(M.html(s.loc[0],s.loc[1],pinEl(s,short(s)),4));
       }else if(!s.bb&&s.loc&&inb(s.loc[0],s.loc[1],.005)){
-        const el=document.createElement('div');el.className='dot';el.style.background=color(s.st);el.title=s.name;el.onclick=()=>openPanel(s);layers.push(M.html(s.loc[0],s.loc[1],el,4));n++;
+        layers.push(M.html(s.loc[0],s.loc[1],pinEl(s,M.tier()===2&&n<120?short(s):''),4));n++;
       }
     });
-    status('화면 내 '+n+'곳 · 경계 또는 점을 누르면 상세정보 · 기준 '+META.built);
+    status('화면 내 '+n+'곳 · 실선 정비구역 · 점선 단지·계획 경계 · 핀 위치만',true);
   }
 }
 function short(s){const n=(s.sintong&&s.sintong.label)||s.name;return n.replace(/\s*(주택정비형|도시정비형)?\s*(재개발|재건축)?\s*(정비)?사업\s*(조합)?.*$/,'').replace(/(아파트|주택)?(재건축|재개발).*$/,'').slice(0,18)||n.slice(0,18)}
-function status(t){document.getElementById('status').textContent=t}
+function status(t,back){const el=document.getElementById('status');el.textContent=t;if(back){const bt=document.createElement('button');bt.type='button';bt.textContent='서울 전체';bt.onclick=goSeoul;el.appendChild(bt)}}
 
 function drawGu(){const c=cssv('--sub')||'#888';GU.forEach(([n,rings])=>{guLayers.push(M.line(rings,c));})}
 /* ---------------- panel ---------------- */
@@ -286,6 +331,9 @@ function openPanel(s){
   h+='<h3>추진 단계</h3>'+steps+kv([['정비구역 지정',d8(dt.zone)],['추진위원회 승인',d8(dt.cmte)],['조합설립인가',d8(dt.assoc)],['사업시행자 지정',d8(dt.trustee)],['사업시행인가',d8(dt.impl)||(si&&si.impl)||''],['관리처분인가',d8(dt.mgmt)||(si&&si.mgmt)||''],['이주',d8(dt.move)],['착공신고',d8(dt.start)],['일반분양승인',d8(dt.sale)],['준공인가',d8(dt.done)],['정비몽땅 표기 단계',esc(s.stage_raw)]]);
   h+='<h3>사업 주체</h3>'+kv([['시행 방식',esc(s.method)],['신탁사',s.trust?esc(s.trust)+(/^조합$/.test(s.method)?' <span class="note">(정비몽땅 협력업체 등재)</span>':''):''],['시공사',esc(s.builder)]]);
   h+='<h3>건축 계획</h3>'+kv([['주용도',esc(pl.use)],['대지면적',pl.site?fmt(pl.site)+'㎡':''],['연면적',pl.gfa?fmt(pl.gfa)+'㎡':''],['건폐율',pl.bcr?pl.bcr+'%':''],['용적률',pl.far?pl.far+'%':''],['최고높이',pl.h?pl.h+'m':''],['층수',esc(pl.fl)],['세대수',pl.hh?fmt(pl.hh)+'세대'+(pl.rent?' (분양 '+fmt(pl.sale||0)+' / 임대 '+fmt(pl.rent)+')':''):(si&&si.hh?fmt(si.hh)+'세대(신통 계획)':'')],['동수',pl.dong_n?pl.dong_n+'개동':'']]);
+  if(s.lotR&&!s.poly.length){
+    const t=s.lotsrc==='official'?'서울도시공간포털 도시계획 도면에 「'+esc(s.lotnm||'')+'」(으)로 표시된 구역 경계':s.lotsrc==='complex'?'같은 단지명('+esc(s.lotnm||'')+') 건물이 있는 필지들을 합친 단지 추정 경계':'대표지번 필지 경계';
+    h+='<p class="note">지도의 점선: '+t+' · 약 '+fmt(s.lot)+'㎡. 고시된 정비구역 경계가 아니므로 실제 사업 범위와 다를 수 있습니다.</p>'}
   h+='<h3>구역 개요</h3>'+kv([['자치구·동',esc(s.gu+' '+(s.dong||''))],['대표지번',esc(s.jibun)],['정비구역 위치',esc(s.loctxt)],['정비구역 면적',s.area?fmt(s.area)+'㎡':(si&&si.area?fmt(si.area)+'㎡':'')],['조합원 수',esc(s.mem)],['용도지역',esc(s.zoneuse)]]);
   if(si){h+='<h3>신속통합기획</h3>'+kv([['구분',esc(si.grp)],['기획완료일',d8(si.plan_date)||(si.done?'':'기획 중·후보지')],['통합심의',esc(si.review)],['최근 동향',esc(si.note)]]);
     const links=(si.src||'').split(' ; ').filter(Boolean).map((u,i)=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">언론'+(i+1)+'</a>');if(si.archive)links.push('<a href="'+esc(si.archive)+'" target="_blank" rel="noopener">신통 아카이브</a>');if(links.length)h+='<div class="note">출처: '+links.join(' · ')+'</div>'}
