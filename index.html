@@ -141,13 +141,13 @@ table.kv td{font-variant-numeric:tabular-nums}
  * (카카오 개발자센터 > 내 애플리케이션 > 앱 키 > JavaScript 키, 플랫폼 > Web 에 배포 주소 등록 필요)
  * 비워두면 무료 오픈스트리트맵(Leaflet)으로 표시됩니다.
  */
-const KAKAO_JS_KEY = '368b3da5034cf7392bf2390b9f8d1ebe';
+const KAKAO_JS_KEY = '';
 /* ================================================ */
 
 const STAGE_COLORS=['--s0','--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
 const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 let STAGES=[],SITES=[],GEO={},META={},GU=[];let guLayers=[];
-let FOCUS=null,FOCUSLOCK=false;
+let FOCUS=null,FOCUSLOCK=false,DONG=null;
 const state={sg:new Set(['done','ing','none']),stages:new Set([0,1,2,3,4,5,6]),mg:new Set(['union','trust','coop','public','etc']),types:new Set(),free:false};
 /* 신통 구분 */
 const SG=[['done','신속통합기획 완료','기획 확정·정비구역 지정'],['ing','신통 기획 중·후보지',''],['none','신통 외 사업장','']];
@@ -274,14 +274,17 @@ function clear(){layers.forEach(l=>l.remove());layers=[]}
 function pip(x,y,rings){let c=false;rings.forEach(r=>{for(let i=0,j=r.length-1;i<r.length;j=i++){const[xi,yi]=r[i],[xj,yj]=r[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c}});return c}
 function guAt(x,y){const g=GU.find(([n,r])=>pip(x,y,r));return g?g[0]:null}
 function guBB(name){const g=GU.find(x=>x[0]===name);if(!g)return null;const bb=[180,90,-180,-90];g[1].forEach(r=>r.forEach(([x,y])=>{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y)}));return bb}
-function goSeoul(){FOCUS=null;FOCUSLOCK=false;M.go(126.99,37.5565,0)}
+function goSeoul(){FOCUS=null;FOCUSLOCK=false;DONG=null;M.go(126.99,37.5565,0)}
+function goGu(n){FOCUS=n;FOCUSLOCK=true;DONG=null;const bb=guBB(n);if(bb)M.fitGu(bb);setTimeout(()=>render(true),400)}
+function dongBB(gu,n){const bb=[180,90,-180,-90];let c=0;SITES.forEach(s=>{if(s.gu!==gu||(s.dong||'(동 미상)')!==n||!s.loc||!visible(s))return;const q=s.bb||[s.loc[0],s.loc[1],s.loc[0],s.loc[1]];bb[0]=Math.min(bb[0],q[0]);bb[1]=Math.min(bb[1],q[1]);bb[2]=Math.max(bb[2],q[2]);bb[3]=Math.max(bb[3],q[3]);c++});return c?bb:null}
+function goDong(){if(!DONG)return;FOCUS=DONG.gu;FOCUSLOCK=true;const bb=dongBB(DONG.gu,DONG.n);if(bb)M.fitDetail(bb)}
 function pinEl(s,label){const el=document.createElement('div');el.className='pin';el.title=s.name;
   el.innerHTML='<svg viewBox="0 0 26 36" aria-hidden="true"><path d="M13 35C13 35 25 21.5 25 12.5A12 12 0 0 0 1 12.5C1 21.5 13 35 13 35Z" fill="'+color(s.st)+'" stroke="#fff" stroke-width="2"/><circle cx="13" cy="12.5" r="4.5" fill="#fff"/></svg>'+(label?'<span class="pl">'+esc(label)+'</span>':'');
   el.onclick=e=>{e.stopPropagation();openPanel(s)};return el}
 function render(force){
   if(!M.kind||!SITES.length)return;
   const tier=M.tier();const b=M.bounds();
-  if(tier===0){FOCUS=null;FOCUSLOCK=false}
+  if(tier===0){FOCUS=null;FOCUSLOCK=false;DONG=null}else if(tier===1)DONG=null;
   else if(tier===1&&!FOCUSLOCK){const c=M.center();FOCUS=guAt(c[0],c[1])||FOCUS}
   const key=tier+'|'+(tier>=1?b.map(x=>x.toFixed(3)).join(','):'')+'|'+FOCUS+'|'+JSON.stringify([[...state.sg],[...state.stages],[...state.mg],[...state.types],state.free]);
   if(!force&&key===lastKey)return;lastKey=key;clear();
@@ -300,7 +303,7 @@ function render(force){
     vis.forEach(s=>{if(!s.loc||(FOCUS&&s.gu!==FOCUS))return;const k=s.dong||'(동 미상)';(groups[k]=groups[k]||[]).push(s)});
     const g=GU.find(x=>x[0]===FOCUS);if(g)layers.push(M.line(g[1],cssv('--accent'),3.5));
     Object.entries(groups).forEach(([k,arr])=>{const x=arr.reduce((a,s)=>a+s.loc[0],0)/arr.length,y=arr.reduce((a,s)=>a+s.loc[1],0)/arr.length;
-      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(k)+' <b>'+arr.length+'</b>';el.onclick=e=>{e.stopPropagation();FOCUSLOCK=true;const bb=[180,90,-180,-90];arr.forEach(s=>{const q=s.bb||[s.loc[0],s.loc[1],s.loc[0],s.loc[1]];bb[0]=Math.min(bb[0],q[0]);bb[1]=Math.min(bb[1],q[1]);bb[2]=Math.max(bb[2],q[2]);bb[3]=Math.max(bb[3],q[3])});M.fitDetail(bb)};layers.push(M.html(x,y,el,5))});
+      const el=document.createElement('div');el.className='bubble';el.innerHTML=esc(k)+' <b>'+arr.length+'</b>';el.onclick=e=>{e.stopPropagation();FOCUSLOCK=true;DONG={gu:FOCUS||arr[0].gu,n:k};const bb=[180,90,-180,-90];arr.forEach(s=>{const q=s.bb||[s.loc[0],s.loc[1],s.loc[0],s.loc[1]];bb[0]=Math.min(bb[0],q[0]);bb[1]=Math.min(bb[1],q[1]);bb[2]=Math.max(bb[2],q[2]);bb[3]=Math.max(bb[3],q[3])});M.fitDetail(bb)};layers.push(M.html(x,y,el,5))});
     const tot=Object.values(groups).reduce((a,v)=>a+v.length,0);
     status((FOCUS?FOCUS+' '+tot+'곳 · 동을 누르면 확대':'동을 누르면 확대'),true);
   }else{
@@ -318,11 +321,12 @@ function render(force){
         layers.push(M.html(s.loc[0],s.loc[1],pinEl(s,M.tier()===2&&n<120?short(s):''),4));n++;
       }
     });
-    status('화면 내 '+n+'곳 · 실선 정비구역 · 점선 단지·계획 경계 · 핀 위치만',true);
+    const c=M.center(),cg=FOCUS||guAt(c[0],c[1]),cr=[['서울 전체',goSeoul]];if(cg)cr.push([cg,()=>goGu(cg)]);if(DONG)cr.push([DONG.n,goDong]);
+    status('화면 내 '+n+'곳 · 실선 정비구역 · 점선 단지·계획 경계 · 핀 위치만',cr);
   }
 }
 function short(s){const n=(s.sintong&&s.sintong.label)||s.name;return n.replace(/\s*(주택정비형|도시정비형)?\s*(재개발|재건축)?\s*(정비)?사업\s*(조합)?.*$/,'').replace(/(아파트|주택)?(재건축|재개발).*$/,'').slice(0,18)||n.slice(0,18)}
-function status(t,back){const el=document.getElementById('status');el.textContent=t;if(back){const bt=document.createElement('button');bt.type='button';bt.textContent='서울 전체';bt.onclick=goSeoul;el.appendChild(bt)}}
+function status(t,back){const el=document.getElementById('status');el.textContent=t;if(back===true)back=[['서울 전체',goSeoul]];(back||[]).forEach(([l,f])=>{const bt=document.createElement('button');bt.type='button';bt.textContent=l;bt.onclick=f;el.appendChild(bt)})}
 
 function drawGu(){const c=cssv('--sub')||'#888';GU.forEach(([n,rings])=>{guLayers.push(M.line(rings,c));})}
 /* ---------------- panel ---------------- */
@@ -360,6 +364,7 @@ function setupSearch(){
     res.innerHTML=hits.map((s,i)=>'<div data-i="'+SITES.indexOf(s)+'">'+esc((s.sintong&&s.sintong.label)||s.name)+'<br><small>'+esc(s.gu+' '+s.jibun)+' · '+STAGES[s.st]+(s.loc?'':' · 위치 미확인')+'</small></div>').join('')||'<div><small>결과 없음</small></div>';res.style.display='block';
     res.querySelectorAll('div[data-i]').forEach(d=>d.onclick=()=>{const s=SITES[+d.dataset.i];res.style.display='none';q.blur();
       if(!visible(s)){GROUPS.forEach(g=>state[g.key].add(g.get(s)));syncUI()}
+      FOCUS=s.gu||null;FOCUSLOCK=true;DONG=s.dong?{gu:s.gu,n:s.dong}:null;
       if(s.bb)M.fit(s.bb);else if(s.loc)M.go(s.loc[0],s.loc[1],2);setTimeout(()=>{render(true);openPanel(s)},350)})};
   q.onfocus=()=>{if(q.value)q.oninput()};
   document.addEventListener('click',e=>{if(!document.getElementById('searchbox').contains(e.target))res.style.display='none'});
