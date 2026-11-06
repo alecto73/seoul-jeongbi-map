@@ -49,6 +49,20 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 #results div{padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--line)}
 #results div:hover{background:var(--chip)}
 #results small{color:var(--sub)}
+#results .sec{padding:6px 14px 4px;font-size:11.5px;font-weight:600;color:var(--sub);background:var(--chip);cursor:default}
+#results .sec:hover{background:var(--chip)}
+#results .pl::before{content:"📍 ";font-size:11px}
+.anchor{transform:translate(-50%,-100%);cursor:pointer}
+.anchor svg{width:30px;height:40px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+.anchor span{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:1px;font-size:11px;font-weight:700;color:#fff;background:#d6336c;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.rads{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
+.near{padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+.near:hover{background:var(--chip)}
+.near .dist{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--sub);min-width:52px;text-align:right;padding-top:1px}
+.near .nm{flex:1;min-width:0;font-size:13.5px;line-height:1.35}
+.near .nm small{display:block;color:var(--sub);font-size:11.5px}
+.near i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:1px}
+.backlink{display:inline-block;font-size:12.5px;margin:2px 0 4px;cursor:pointer}
 .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
 .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 #filters{position:absolute;left:12px;top:64px;z-index:1000;width:330px;max-height:calc(100% - 140px);overflow:auto;padding:6px 14px 12px;display:none}
@@ -119,7 +133,7 @@ table.kv td{font-variant-numeric:tabular-nums}
 <body>
 <div id="map"></div>
 <div id="top">
-  <div id="searchbox" class="card"><input id="q" placeholder="사업장명·동 이름 검색 (예: 면목, 압구정, 신림)" autocomplete="off"><div id="results"></div></div>
+  <div id="searchbox" class="card"><input id="q" placeholder="사업장·동·주소·장소 검색 (예: 신림, 잠실역, 테헤란로 152)" autocomplete="off"><div id="results"></div></div>
   <button class="btn card" id="fbtn">필터</button>
 </div>
 <div id="filters" class="card">
@@ -141,13 +155,14 @@ table.kv td{font-variant-numeric:tabular-nums}
  * (카카오 개발자센터 > 내 애플리케이션 > 앱 키 > JavaScript 키, 플랫폼 > Web 에 배포 주소 등록 필요)
  * 비워두면 무료 오픈스트리트맵(Leaflet)으로 표시됩니다.
  */
-const KAKAO_JS_KEY = '';
+const KAKAO_JS_KEY = '368b3da5034cf7392bf2390b9f8d1ebe';
 /* ================================================ */
 
 const STAGE_COLORS=['--s0','--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
 const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 let STAGES=[],SITES=[],GEO={},META={},GU=[];let guLayers=[];
 let FOCUS=null,FOCUSLOCK=false,DONG=null;
+let ANCHOR=null,RADIUS=1000,anchorLayers=[];
 const state={sg:new Set(['done','ing','none']),stages:new Set([0,1,2,3,4,5,6]),mg:new Set(['union','trust','coop','public','etc']),types:new Set(),free:false};
 /* 신통 구분 */
 const SG=[['done','신속통합기획 완료','기획 확정·정비구역 지정'],['ing','신통 기획 중·후보지',''],['none','신통 외 사업장','']];
@@ -206,6 +221,8 @@ const M={kind:'',map:null,
     else{const z=Math.min(14,Math.max(13,this.map.getBoundsZoom([[b[1],b[0]],[b[3],b[2]]])));this.map.setView([cy,cx],z)}},
   fitDetail(b){if(this.kind==='kakao'){const k=kakao.maps;this.map.setBounds(new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2])),50,30,60,30);if(this.map.getLevel()>5)this.map.setLevel(5)}
     else{const z=Math.min(17,Math.max(15,this.map.getBoundsZoom([[b[1],b[0]],[b[3],b[2]]],false,L.point(60,100))));this.map.setView([(b[1]+b[3])/2,(b[0]+b[2])/2],z)}},
+  circle(lng,lat,r){if(this.kind==='kakao'){const k=kakao.maps;const c=new k.Circle({center:new k.LatLng(lat,lng),radius:r,strokeWeight:2,strokeColor:'#d6336c',strokeOpacity:.9,strokeStyle:'dash',fillColor:'#d6336c',fillOpacity:.06});c.setMap(this.map);return{remove:()=>c.setMap(null)}}
+    const c=L.circle([lat,lng],{radius:r,color:'#d6336c',weight:2,dashArray:'6 5',fillOpacity:.06,interactive:false}).addTo(this.map);return{remove:()=>c.remove()}},
   fit(b){if(this.kind==='kakao'){const k=kakao.maps;const bb=new k.LatLngBounds(new k.LatLng(b[1],b[0]),new k.LatLng(b[3],b[2]));this.map.setBounds(bb,40,40,40,40)}else this.map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[40,40],maxZoom:17})}
 };
 
@@ -351,21 +368,79 @@ function openPanel(s){
     const links=(si.src||'').split(' ; ').filter(Boolean).map((u,i)=>'<a href="'+esc(u)+'" target="_blank" rel="noopener">언론'+(i+1)+'</a>');if(si.archive)links.push('<a href="'+esc(si.archive)+'" target="_blank" rel="noopener">신통 아카이브</a>');if(links.length)h+='<div class="note">출처: '+links.join(' · ')+'</div>'}
   const L=[];if(s.cafe)L.push('<a target="_blank" rel="noopener" href="https://cleanup.seoul.go.kr/cafe/mainIndx.do?cafeUrl='+encodeURIComponent(s.cafe)+'">정비몽땅 사업장 페이지</a>');if(s.map)L.push('<a target="_blank" rel="noopener" href="https://urban.seoul.go.kr/view/map/mapPopup.html?recordCode='+encodeURIComponent(s.map)+'">도시공간포털 지도</a>');
   h+='<h3>바로가기</h3><div class="note">'+(L.join(' · ')||'—')+'</div><p class="note">정비몽땅 공개자료는 각 조합·추진위·신탁사가 입력한 내용으로 누락·지연이 있을 수 있습니다. 데이터 기준일 '+META.built+'.</p>';
+  if(ANCHOR)h='<a class="backlink" onclick="openNearby()">← '+esc(ANCHOR.n)+' 주변 목록</a>'+h;
   document.getElementById('pbody').innerHTML=h;document.getElementById('pbody').scrollTop=0;
 }
 function showFree(g){const p=document.getElementById('panel');p.style.display='block';document.getElementById('ptitle').textContent=g.n;document.getElementById('pbadges').innerHTML='<span class="badge">정비구역 경계(사업장 정보 미연계)</span>';document.getElementById('pbody').innerHTML='<p class="note">서울도시공간포털 정비구역 도면 레이어(코드 '+esc(g.c)+'). 정비몽땅에 등록된 사업장 정보와 연결되지 않은 구역입니다. 이미 완료된 사업이거나 미등록 사업장일 수 있습니다.</p>'}
 function closePanel(){document.getElementById('panel').style.display='none'}
 
 /* ---------------- search ---------------- */
+const SEOUL_BB=[126.76,37.41,127.19,37.72];
+/* 주소·장소 검색: 카카오 키가 있으면 카카오 장소·주소 검색, 없으면 오픈스트리트맵(Nominatim) */
+function placeSearch(v){
+  if(M.kind==='kakao'&&M.places){const k=kakao.maps,S=k.services.Status;
+    const bounds=new k.LatLngBounds(new k.LatLng(SEOUL_BB[1],SEOUL_BB[0]),new k.LatLng(SEOUL_BB[3],SEOUL_BB[2]));
+    const a=new Promise(res=>M.geocoder.addressSearch(v,(d,st)=>res(st===S.OK?d.slice(0,5).map(x=>({n:(x.road_address&&x.road_address.address_name)||x.address_name,a:x.address_name,x:+x.x,y:+x.y,k:'주소'})):[])));
+    const p=new Promise(res=>M.places.keywordSearch(v,(d,st)=>res(st===S.OK?d.map(x=>({n:x.place_name,a:x.road_address_name||x.address_name,x:+x.x,y:+x.y,k:x.category_group_name||'장소'})):[]),{bounds,size:10}));
+    return Promise.all([a,p]).then(([A,P])=>A.concat(P))}
+  const u='https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=ko&countrycodes=kr&bounded=1&limit=8&viewbox='+[SEOUL_BB[0],SEOUL_BB[3],SEOUL_BB[2],SEOUL_BB[1]].join(',')+'&q='+encodeURIComponent(v);
+  return fetch(u).then(r=>r.json()).then(d=>d.map(x=>({n:x.name||x.display_name.split(',')[0],a:x.display_name.split(',').slice(0,4).join(','),x:+x.lon,y:+x.lat,k:'장소'}))).catch(()=>[])}
+function distM(x1,y1,x2,y2){const R=6371000,r=Math.PI/180,dy=(y2-y1)*r,dx=(x2-x1)*r*Math.cos((y1+y2)/2*r);return Math.round(R*Math.sqrt(dx*dx+dy*dy))}
+function siteDist(s,x,y){
+  const rings=s.poly&&s.poly.length?s.poly.map(k=>GEO[k]?GEO[k].r:[]).flat():(s.lotR||null);
+  if(rings&&s.bb&&x>=s.bb[0]&&x<=s.bb[2]&&y>=s.bb[1]&&y<=s.bb[3]&&pip(x,y,rings))return 0;
+  let best=Infinity;
+  if(s.loc)best=distM(x,y,s.loc[0],s.loc[1]);
+  if(rings){rings.forEach(r=>{for(let i=0;i<r.length;i+=Math.max(1,Math.floor(r.length/60)))best=Math.min(best,distM(x,y,r[i][0],r[i][1]))})}
+  return best}
+function clearAnchor(){anchorLayers.forEach(l=>l.remove());anchorLayers=[];ANCHOR=null}
+function drawAnchor(){anchorLayers.forEach(l=>l.remove());anchorLayers=[];if(!ANCHOR||!M.kind)return;
+  anchorLayers.push(M.circle(ANCHOR.x,ANCHOR.y,RADIUS));
+  const el=document.createElement('div');el.className='anchor';el.style.position='relative';
+  el.innerHTML='<svg viewBox="0 0 26 36"><path d="M13 35C13 35 25 21.5 25 12.5A12 12 0 0 0 1 12.5C1 21.5 13 35 13 35Z" fill="#d6336c" stroke="#fff" stroke-width="2"/><path d="M13 6.5l1.8 3.8 4.1.5-3 2.8.8 4.1-3.7-2-3.7 2 .8-4.1-3-2.8 4.1-.5z" fill="#fff"/></svg><span>'+esc(ANCHOR.n.slice(0,16))+'</span>';
+  el.onclick=e=>{e.stopPropagation();openNearby()};anchorLayers.push(M.html(ANCHOR.x,ANCHOR.y,el,6))}
+function fitAnchor(){const dy=RADIUS/111320,dx=RADIUS/(111320*Math.cos(ANCHOR.y*Math.PI/180));M.fit([ANCHOR.x-dx,ANCHOR.y-dy,ANCHOR.x+dx,ANCHOR.y+dy])}
+function setAnchor(p){ANCHOR=p;FOCUS=guAt(p.x,p.y);FOCUSLOCK=true;DONG=null;drawAnchor();fitAnchor();setTimeout(()=>{render(true);openNearby()},350)}
+function openNearby(){
+  if(!ANCHOR)return;const p=document.getElementById('panel');p.style.display='block';
+  document.getElementById('ptitle').textContent=ANCHOR.n+' 주변 정비사업장';
+  document.getElementById('pbadges').innerHTML='<span class="badge">'+esc(ANCHOR.k||'검색 위치')+'</span>'+(ANCHOR.a&&ANCHOR.a!==ANCHOR.n?'<span class="badge">'+esc(ANCHOR.a)+'</span>':'');
+  const all=SITES.map(s=>({s,d:siteDist(s,ANCHOR.x,ANCHOR.y)})).filter(o=>o.d<=RADIUS).sort((a,b)=>a.d-b.d);
+  const shown=all.filter(o=>visible(o.s)),hid=all.length-shown.length;
+  let h='<div class="rads">'+[300,500,1000,2000].map(r=>'<span class="chip'+(r===RADIUS?' on':'')+'" data-r="'+r+'">반경 '+(r<1000?r+'m':r/1000+'km')+'</span>').join('')+'<span class="chip" data-clear="1">기준점 지우기</span></div>';
+  h+='<div class="note">반경 '+(RADIUS<1000?RADIUS+'m':RADIUS/1000+'km')+' 안 '+shown.length+'곳'+(hid?' · 필터로 숨긴 '+hid+'곳 <a class="backlink" data-all="1">모두 보기</a>':'')+' · 거리는 정비구역 경계(없으면 대표지번)까지의 직선거리</div>';
+  h+=shown.length?shown.map(o=>{const s=o.s;const tr=s.trust||(s.sintong&&s.sintong.trust)||'';
+    return '<div class="near" data-i="'+SITES.indexOf(s)+'"><span class="dist">'+(o.d===0?'구역 안':o.d<1000?o.d+'m':(o.d/1000).toFixed(1)+'km')+'</span><span class="nm"><i style="background:'+color(s.st)+'"></i>'+esc((s.sintong&&s.sintong.label)||s.name)+'<small>'+esc(STAGES[s.st])+' · '+esc(s.type)+(s.method?' · '+esc(s.method):'')+(tr?' · '+esc(tr):'')+(s.builder?' · '+esc(s.builder):'')+'</small></span></div>'}).join(''):'<p class="note">반경 안에 표시할 사업장이 없습니다. 반경을 넓혀 보세요.</p>';
+  h+='<p class="note">위치가 확인되지 않은 사업장은 목록에서 빠질 수 있습니다. 데이터 기준일 '+META.built+'.</p>';
+  const bd=document.getElementById('pbody');bd.innerHTML=h;bd.scrollTop=0;
+  bd.querySelectorAll('[data-r]').forEach(c=>c.onclick=()=>{RADIUS=+c.dataset.r;drawAnchor();fitAnchor();openNearby()});
+  bd.querySelector('[data-clear]').onclick=()=>{clearAnchor();closePanel()};
+  const al=bd.querySelector('[data-all]');if(al)al.onclick=()=>{all.forEach(o=>GROUPS.forEach(g=>state[g.key].add(g.get(o.s))));syncUI();render(true);openNearby()};
+  bd.querySelectorAll('.near').forEach(d=>d.onclick=()=>{const s=SITES[+d.dataset.i];if(s.bb)M.fit(s.bb);else if(s.loc)M.go(s.loc[0],s.loc[1],2);setTimeout(()=>{render(true);openPanel(s)},350)});
+}
 function setupSearch(){
-  const q=document.getElementById('q'),res=document.getElementById('results');
-  q.oninput=()=>{const v=q.value.trim().replace(/\s+/g,'');if(v.length<1){res.style.display='none';return}
-    const hits=SITES.filter(s=>(s.name+(s.nm2||'')+(s.sintong?s.sintong.label:'')+s.gu+s.dong+s.jibun).replace(/\s+/g,'').includes(v)).slice(0,40);
-    res.innerHTML=hits.map((s,i)=>'<div data-i="'+SITES.indexOf(s)+'">'+esc((s.sintong&&s.sintong.label)||s.name)+'<br><small>'+esc(s.gu+' '+s.jibun)+' · '+STAGES[s.st]+(s.loc?'':' · 위치 미확인')+'</small></div>').join('')||'<div><small>결과 없음</small></div>';res.style.display='block';
+  const q=document.getElementById('q'),res=document.getElementById('results');let timer=null,seq=0,places=[];
+  const draw=(hits,v)=>{
+    let h='';
+    if(hits.length)h+='<div class="sec">정비사업장</div>'+hits.map(s=>'<div data-i="'+SITES.indexOf(s)+'">'+esc((s.sintong&&s.sintong.label)||s.name)+'<br><small>'+esc(s.gu+' '+s.jibun)+' · '+STAGES[s.st]+(s.loc?'':' · 위치 미확인')+'</small></div>').join('');
+    if(places.length)h+='<div class="sec">주소·장소 — 누르면 주변 사업장 보기</div>'+places.map((p,i)=>'<div class="pl" data-p="'+i+'">'+esc(p.n)+'<br><small>'+esc(p.a)+(p.k?' · '+esc(p.k):'')+'</small></div>').join('');
+    else if(v.length>=2)h+='<div class="sec">주소·장소 검색 중…</div>';
+    res.innerHTML=h||'<div><small>결과 없음</small></div>';res.style.display='block';
     res.querySelectorAll('div[data-i]').forEach(d=>d.onclick=()=>{const s=SITES[+d.dataset.i];res.style.display='none';q.blur();
       if(!visible(s)){GROUPS.forEach(g=>state[g.key].add(g.get(s)));syncUI()}
       FOCUS=s.gu||null;FOCUSLOCK=true;DONG=s.dong?{gu:s.gu,n:s.dong}:null;
-      if(s.bb)M.fit(s.bb);else if(s.loc)M.go(s.loc[0],s.loc[1],2);setTimeout(()=>{render(true);openPanel(s)},350)})};
+      if(s.bb)M.fit(s.bb);else if(s.loc)M.go(s.loc[0],s.loc[1],2);setTimeout(()=>{render(true);openPanel(s)},350)});
+    res.querySelectorAll('div[data-p]').forEach(d=>d.onclick=()=>{const p=places[+d.dataset.p];res.style.display='none';q.blur();setAnchor(p)});
+  };
+  q.oninput=()=>{const raw=q.value.trim(),v=raw.replace(/\s+/g,'');if(v.length<1){res.style.display='none';return}
+    const hits=SITES.filter(s=>(s.name+(s.nm2||'')+(s.sintong?s.sintong.label:'')+s.gu+s.dong+s.jibun).replace(/\s+/g,'').includes(v)).slice(0,hits_max(v));
+    places=[];draw(hits,v);clearTimeout(timer);
+    if(v.length<2)return;const my=++seq;
+    timer=setTimeout(()=>placeSearch(raw).then(P=>{if(my!==seq)return;
+      places=P.filter(p=>p.x>=SEOUL_BB[0]&&p.x<=SEOUL_BB[2]&&p.y>=SEOUL_BB[1]&&p.y<=SEOUL_BB[3]).slice(0,10);
+      if(!places.length)places=[];draw(hits,'');if(!places.length&&!hits.length)res.innerHTML='<div><small>결과 없음</small></div>'}),M.kind==='kakao'?300:700)};
+  const hits_max=v=>v.length<2?15:25;
+  q.onkeydown=e=>{if(e.key==='Enter'){const f=res.querySelector('div[data-i],div[data-p]');if(f)f.click()}};
   q.onfocus=()=>{if(q.value)q.oninput()};
   document.addEventListener('click',e=>{if(!document.getElementById('searchbox').contains(e.target))res.style.display='none'});
 }
