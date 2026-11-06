@@ -63,6 +63,13 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .near .nm small{display:block;color:var(--sub);font-size:11.5px}
 .near i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:1px}
 .backlink{display:inline-block;font-size:12.5px;margin:2px 0 4px;cursor:pointer}
+#exitdlg{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+#exitdlg .box{background:var(--panel);color:var(--ink);border-radius:14px;padding:20px 18px 14px;width:100%;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+#exitdlg p{margin:0 0 16px;font-size:15px;font-weight:600}
+#exitdlg small{display:block;font-weight:400;font-size:12.5px;color:var(--sub);margin-top:6px}
+#exitdlg .bt{display:flex;gap:8px;justify-content:flex-end}
+#exitdlg button{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:10px;padding:9px 16px;font-size:14px;font-family:inherit;cursor:pointer}
+#exitdlg button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
 .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 #filters{position:absolute;left:12px;top:64px;z-index:1000;width:330px;max-height:calc(100% - 140px);overflow:auto;padding:6px 14px 12px;display:none}
@@ -146,6 +153,7 @@ table.kv td{font-variant-numeric:tabular-nums}
 </div>
 <div id="legend" class="card"></div>
 <div id="status" class="card"></div>
+<div id="exitdlg" role="dialog" aria-modal="true"><div class="box"><p>앱을 종료할까요?<small>뒤로 버튼을 한 번 더 눌러도 종료됩니다.</small></p><div class="bt"><button type="button" id="exitno" class="pri">계속 보기</button><button type="button" id="exityes">종료</button></div></div></div>
 <div id="panel" class="card"><div class="hd"><button class="x" onclick="closePanel()">×</button><h2 id="ptitle"></h2><div id="pbadges"></div></div><div class="bd" id="pbody"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -445,6 +453,36 @@ function setupSearch(){
   document.addEventListener('click',e=>{if(!document.getElementById('searchbox').contains(e.target))res.style.display='none'});
 }
 
+/* ---------------- 휴대폰 '뒤로' 버튼 처리 ----------------
+ * 뒤로 버튼을 누르면 ① 열린 검색결과·필터·패널을 먼저 닫고 ② 닫을 게 없으면 종료 확인창을 띄운다.
+ * 브라우저는 사용자가 화면을 만진 뒤에 추가한 기록만 '뒤로'에 걸어 주므로, 화면을 탭할 때마다 방어용 기록을 다시 걸어 둔다.
+ */
+const BACK={armed:false,
+  arm(){if(this.armed)return;try{history.pushState({jbguard:1},'')}catch(e){return}this.armed=true},
+  dlg(){return document.getElementById('exitdlg')},
+  open(){this.dlg().style.display='flex'},
+  shut(){this.dlg().style.display='none'},
+  isOpen(){return this.dlg().style.display==='flex'}};
+function closeTopLayer(){
+  const res=document.getElementById('results');if(res.style.display==='block'){res.style.display='none';document.getElementById('q').blur();return true}
+  const f=document.getElementById('filters');if(f.style.display==='block'){document.getElementById('fclose').click();return true}
+  const p=document.getElementById('panel');if(p.style.display==='block'){
+    if(ANCHOR&&document.querySelector('#pbody .backlink[onclick]')){openNearby();return true}
+    closePanel();return true}
+  return false}
+function setupBack(){
+  document.addEventListener('pointerdown',e=>{if(BACK.isOpen())return;BACK.arm()},true);
+  document.addEventListener('keydown',()=>{if(!BACK.isOpen())BACK.arm()},true);
+  window.addEventListener('popstate',()=>{
+    BACK.armed=false;
+    if(BACK.isOpen()){BACK.shut();history.back();return}   // 확인창이 떠 있는 상태에서 또 뒤로 → 종료
+    if(closeTopLayer())return;                               // 닫을 게 있었으면 닫기만
+    BACK.open()});
+  document.getElementById('exitno').onclick=()=>{BACK.shut();BACK.arm()};
+  document.getElementById('exityes').onclick=()=>{BACK.shut();history.back();setTimeout(()=>{try{window.close()}catch(e){}setTimeout(()=>{if(document.visibilityState==='visible')status('휴대폰의 뒤로 버튼을 한 번 더 누르면 종료됩니다')},400)},200)};
+  document.getElementById('exitdlg').addEventListener('click',e=>{if(e.target.id==='exitdlg'){BACK.shut();BACK.arm()}});
+}
+
 /* ---------------- runtime geocode (카카오) ---------------- */
 async function geocodeMissing(){
   if(M.kind!=='kakao')return;const miss=SITES.filter(s=>!s.loc&&s.geocode);if(!miss.length)return;
@@ -458,7 +496,7 @@ async function geocodeMissing(){
   render(true);
 }
 
-loadData().then(()=>{buildFilters();setupSearch();M.init(()=>{drawGu();render(true);geocodeMissing()})}).catch(e=>{status('데이터를 불러오지 못했습니다: '+e)});
+loadData().then(()=>{buildFilters();setupSearch();setupBack();M.init(()=>{drawGu();render(true);geocodeMissing()})}).catch(e=>{status('데이터를 불러오지 못했습니다: '+e)});
 </script>
 </body>
 </html>
