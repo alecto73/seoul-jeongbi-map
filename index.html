@@ -457,12 +457,17 @@ function setupSearch(){
  * 뒤로 버튼을 누르면 ① 열린 검색결과·필터·패널을 먼저 닫고 ② 닫을 게 없으면 종료 확인창을 띄운다.
  * 브라우저는 사용자가 화면을 만진 뒤에 추가한 기록만 '뒤로'에 걸어 주므로, 화면을 탭할 때마다 방어용 기록을 다시 걸어 둔다.
  */
-const BACK={armed:false,
-  arm(){if(this.armed)return;try{history.pushState({jbguard:1},'')}catch(e){return}this.armed=true},
+/* 방어용 기록을 여러 겹(GUARD) 쌓아 두어, 화면을 만지지 않고 뒤로를 연달아 눌러도 한 번씩 받아낸다. */
+const GUARD=4;
+const BACK={exiting:false,
+  depth(){const st=history.state;return st&&st.jbg?st.jbg:0},
+  arm(){if(this.exiting)return;try{for(let d=this.depth();d<GUARD;d++)history.pushState({jbg:d+1},'')}catch(e){}},
   dlg(){return document.getElementById('exitdlg')},
   open(){this.dlg().style.display='flex'},
   shut(){this.dlg().style.display='none'},
-  isOpen(){return this.dlg().style.display==='flex'}};
+  isOpen(){return this.dlg().style.display==='flex'},
+  exit(){this.exiting=true;this.shut();const d=this.depth();history.go(-(d+1));
+    setTimeout(()=>{try{window.close()}catch(e){}setTimeout(()=>{if(document.visibilityState==='visible'){BACK.exiting=false;status('휴대폰의 뒤로 버튼을 한 번 더 누르면 종료됩니다')}},500)},250)}};
 function closeTopLayer(){
   const res=document.getElementById('results');if(res.style.display==='block'){res.style.display='none';document.getElementById('q').blur();return true}
   const f=document.getElementById('filters');if(f.style.display==='block'){document.getElementById('fclose').click();return true}
@@ -471,16 +476,17 @@ function closeTopLayer(){
     closePanel();return true}
   return false}
 function setupBack(){
-  document.addEventListener('pointerdown',e=>{if(BACK.isOpen())return;BACK.arm()},true);
-  document.addEventListener('keydown',()=>{if(!BACK.isOpen())BACK.arm()},true);
+  document.addEventListener('pointerdown',()=>BACK.arm(),true);
+  document.addEventListener('keydown',()=>BACK.arm(),true);
   window.addEventListener('popstate',()=>{
-    BACK.armed=false;
-    if(BACK.isOpen()){BACK.shut();history.back();return}   // 확인창이 떠 있는 상태에서 또 뒤로 → 종료
-    if(closeTopLayer())return;                               // 닫을 게 있었으면 닫기만
-    BACK.open()});
+    if(BACK.exiting)return;
+    if(BACK.isOpen()){BACK.exit();return}          // 확인창이 떠 있는 상태에서 또 뒤로 → 종료
+    if(!closeTopLayer())BACK.open();                // 닫을 게 있으면 닫고, 없으면 확인창
+    BACK.arm()});                                    // 소모된 방어 기록 다시 채우기
   document.getElementById('exitno').onclick=()=>{BACK.shut();BACK.arm()};
-  document.getElementById('exityes').onclick=()=>{BACK.shut();history.back();setTimeout(()=>{try{window.close()}catch(e){}setTimeout(()=>{if(document.visibilityState==='visible')status('휴대폰의 뒤로 버튼을 한 번 더 누르면 종료됩니다')},400)},200)};
+  document.getElementById('exityes').onclick=()=>BACK.exit();
   document.getElementById('exitdlg').addEventListener('click',e=>{if(e.target.id==='exitdlg'){BACK.shut();BACK.arm()}});
+  BACK.arm();
 }
 
 /* ---------------- runtime geocode (카카오) ---------------- */
